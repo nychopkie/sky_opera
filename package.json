@@ -1,0 +1,25 @@
+{
+    "name": "boid-drone-simulation",
+    "version": "1.0.0",
+    "type": "module",
+    "description": "Thousand-scale drone Boid algorithm 3D simulation system",
+    "scripts": {
+        "dev": "vite",
+        "build": "tsc && vite build",
+        "preview": "vite preview"
+    },
+    "dependencies": {
+        "geotiff": "^2.1.4-beta.0",
+        "lil-gui": "^0.19.2",
+        "plotty": "^0.4.9",
+        "proj4": "^2.20.0",
+        "shapefile": "^0.6.6",
+        "three": "^0.169.0"
+    },
+    "devDependencies": {
+        "@types/proj4": "^2.5.6",
+        "@types/three": "^0.169.0",
+        "typescript": "^5.6.3",
+        "vite": "^7.1.12"
+    }
+}
