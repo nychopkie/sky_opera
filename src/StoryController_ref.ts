@@ -17,8 +17,7 @@ export interface StoryConfig {
     scene3_duration: number;
 }
 
-// type StoryScene = 'inactive' | 'scene1_spiral' | 'scene2_expand' | 'scene3_split';
-type StoryScene = 'inactive' | 'scene1_split';
+type StoryScene = 'inactive' | 'scene1_spiral' | 'scene2_expand' | 'scene3_split';
 
 /**
  * 这是一个用于控制无人机群表演特定故事的控制器。
@@ -67,9 +66,8 @@ export class StoryController {
             b.storyTarget = new Vector3(); // 为每个boid初始化storyTarget
         });
 
-        this.currentScene = 'scene1_split';
+        this.currentScene = 'scene1_spiral';
         this.sceneTime = 0;
-        this.assignGroupsForScene1();
     }
 
     public stop(): void {
@@ -88,23 +86,23 @@ export class StoryController {
         this.sceneTime += deltaTime;
 
         switch (this.currentScene) {
-            // case 'scene1_spiral':
-            //     this.updateScene1_Spiral();
-            //     if (this.sceneTime >= this.config.scene1_duration) {
-            //         this.currentScene = 'scene2_expand';
-            //         this.sceneTime = 0;
-            //     }
-            //     break;
-            // case 'scene2_expand':
-            //     this.updateScene2_Expand();
-            //     if (this.sceneTime >= this.config.scene2_duration) {
-            //         this.currentScene = 'scene3_split';
-            //         this.sceneTime = 0;
-            //         this.assignGroupsForScene3();
-            //     }
-            //     break;
-            case 'scene1_split':
-                this.updateScene1_Split();
+            case 'scene1_spiral':
+                this.updateScene1_Spiral();
+                if (this.sceneTime >= this.config.scene1_duration) {
+                    this.currentScene = 'scene2_expand';
+                    this.sceneTime = 0;
+                }
+                break;
+            case 'scene2_expand':
+                this.updateScene2_Expand();
+                if (this.sceneTime >= this.config.scene2_duration) {
+                    this.currentScene = 'scene3_split';
+                    this.sceneTime = 0;
+                    this.assignGroupsForScene3();
+                }
+                break;
+            case 'scene3_split':
+                this.updateScene3_Split();
                 if (this.sceneTime >= this.config.scene3_duration) {
                     this.stop(); // 故事结束
                 }
@@ -152,7 +150,7 @@ export class StoryController {
         });
     }
 
-    private assignGroupsForScene1(): void {
+    private assignGroupsForScene3(): void {
         let boidIndex = 0;
         this.config.groups.forEach(group => {
             const groupSize = Math.floor(this.config.totalBoidCount * group.ratio);
@@ -172,7 +170,7 @@ export class StoryController {
         }
     }
 
-    private updateScene1_Split(): void {
+    private updateScene3_Split(): void {
         const numGroups = this.config.groups.length;
         this.boidSystem.boids.forEach((boid, i) => {
             if (boid.groupData) {
