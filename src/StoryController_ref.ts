@@ -188,11 +188,6 @@ export class StoryController {
                 const progress = this.sceneTime / this.config.scene3_duration;
                 boid.storyTarget = centerOfMass.lerp(targetPos, progress);
                 boid.color.set(boid.groupData.color);
-
-                // 背景组的无人机在此场景中逐渐亮起
-                if (i >= this.config.initialBoidCount) {
-                boid.lightIntensity = Math.min(1.0, progress*2); // 进度过半时完全点亮
-                }
             }
         });
     }

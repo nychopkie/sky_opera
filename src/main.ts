@@ -24,6 +24,7 @@ class App {
         const config = new BoidConfig();
         config.bounds.min.set(-500, 0, -500);
         config.bounds.max.set(500, 500, 500);
+        config.maxSpeed = 1.0
 
         // Initialize system
         this.boidSystem = new BoidSystem(config);
@@ -38,21 +39,29 @@ class App {
 
         // Initialize Story Controller
         const storyConfig: StoryConfig = {
-            totalBoidCount: 860, // 17189 / 20
-            initialBoidCount: 35, // 700 / 20
+            totalBoidCount: 1000, // 17189 / 20
+            initialBoidCount: 50, // 700 / 20
             groups: [ // 5 schools
-                { ratio: 0.25, color: new Color(0xff0000) }, // Science
-                { ratio: 0.25, color: new Color(0x00ff00) }, // Engineering
+                { ratio: 0.2, color: new Color(0xff0000) }, // Science
+                { ratio: 0.2, color: new Color(0x00ff00) }, // Engineering
                 { ratio: 0.2, color: new Color(0x0000ff) }, // Business
-                { ratio: 0.15, color: new Color(0xffff00) }, // Humanities
-                { ratio: 0.15, color: new Color(0xff00ff) }  // Interdisciplinary
+                { ratio: 0.2, color: new Color(0xffff00) }, // Humanities
+                { ratio: 0.2, color: new Color(0xff00ff) }  // Interdisciplinary
             ],
+            // scene1_spiralHeight: 50,
+            // scene1_duration: 10,
+            // scene2_expansionRadius: 60,
+            // scene2_duration: 8,
+            // scene3_splitApartDistance: 80,
+            // scene3_duration: 12
             scene1_spiralHeight: 50,
+            scene1_splitApartDistance: 200,
             scene1_duration: 10,
-            scene2_expansionRadius: 60,
-            scene2_duration: 8,
-            scene3_splitApartDistance: 80,
-            scene3_duration: 12
+            scene2_joinDistance: 80,
+            scene2_duration: 10,
+            scene3_shapeType: ['circle', 'square', 'triangle', 'pentagon', 'hexagon'],
+            scene3_shapeRadius: 60,
+            scene3_duration: 25,
         };
         this.storyController = new StoryController(this.boidSystem, storyConfig);
 

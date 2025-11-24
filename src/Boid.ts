@@ -76,7 +76,7 @@ export class Boid {
     /**
      * Calculate all behavior forces
      */
-    calculateForces(allBoids: Boid[], config: BoidConfig): void {
+    calculateForces(_allBoids: Boid[], config: BoidConfig): void {
         // --- Story Mode Override ---
         // If a story target is set, we override all other behaviors
         // and apply a strong force towards that target.
@@ -91,15 +91,92 @@ export class Boid {
 
         if (!config.enableFlocking) return;
 
-        const separation = this.separate(config).multiplyScalar(config.separationWeight);
-        const alignment = this.align(config).multiplyScalar(config.alignmentWeight);
-        const cohesion = this.cohere(config).multiplyScalar(config.cohesionWeight);
-        const boundary = this.boundaryForce(config).multiplyScalar(config.boundaryForce);
+        // If group-aware mode is enabled, compute forces with group separation:
+        // - Alignment & cohesion only from same-group neighbors
+        // - Separation from same-group neighbors as usual, and an extra inter-group separation
+        if (config.groupAwareMode && this.groupData) {
+            const sep = new Vector3();
+            const sepCount = { same: 0, other: 0 };
 
-        this.applyForce(separation, config);
-        this.applyForce(alignment, config);
-        this.applyForce(cohesion, config);
-        this.applyForce(boundary, config);
+            const align = new Vector3();
+            let alignCount = 0;
+
+            const cohPos = new Vector3();
+            let cohCount = 0;
+
+            for (const other of this.neighbors) {
+                const distance = this.position.distanceTo(other.position);
+                if (distance <= 0) continue;
+
+                const sameGroup = other.groupData && this.groupData && other.groupData === this.groupData;
+
+                if (sameGroup) {
+                    if (distance < config.separationDistance) {
+                        const diff = new Vector3().subVectors(this.position, other.position).normalize().divideScalar(distance);
+                        sep.add(diff);
+                        sepCount.same++;
+                    }
+
+                    if (distance < config.alignmentDistance) {
+                        align.add(other.velocity);
+                        alignCount++;
+                    }
+
+                    if (distance < config.cohesionDistance) {
+                        cohPos.add(other.position);
+                        cohCount++;
+                    }
+                } else {
+                    // Other-group separation if within interGroupSeparationDistance
+                    if (distance < config.interGroupSeparationDistance) {
+                        const diff = new Vector3().subVectors(this.position, other.position).normalize().divideScalar(distance);
+                        sep.add(diff);
+                        sepCount.other++;
+                    }
+                }
+            }
+
+            // Compose separation
+            let separationForce = new Vector3();
+            if (sepCount.same > 0) {
+                separationForce.add(sep.clone().divideScalar(sepCount.same).normalize().multiplyScalar(config.maxSpeed).sub(this.velocity));
+            }
+            if (sepCount.other > 0) {
+                const otherSep = sep.clone().divideScalar(sepCount.other).normalize().multiplyScalar(config.maxSpeed).sub(this.velocity);
+                separationForce.add(otherSep.multiplyScalar(config.interGroupSeparationWeight));
+            }
+
+            // Alignment (same-group)
+            let alignmentForce = new Vector3();
+            if (alignCount > 0) {
+                alignmentForce.copy(align.divideScalar(alignCount).normalize().multiplyScalar(config.maxSpeed).sub(this.velocity));
+            }
+
+            // Cohesion (same-group)
+            let cohesionForce = new Vector3();
+            if (cohCount > 0) {
+                const center = cohPos.divideScalar(cohCount);
+                cohesionForce = this.seek(center, config);
+            }
+
+            const boundary = this.boundaryForce(config).multiplyScalar(config.boundaryForce);
+
+            this.applyForce(separationForce.multiplyScalar(config.separationWeight), config);
+            this.applyForce(alignmentForce.multiplyScalar(config.alignmentWeight), config);
+            this.applyForce(cohesionForce.multiplyScalar(config.cohesionWeight), config);
+            this.applyForce(boundary, config);
+        } else {
+            // Default behavior
+            const separation = this.separate(config).multiplyScalar(config.separationWeight);
+            const alignment = this.align(config).multiplyScalar(config.alignmentWeight);
+            const cohesion = this.cohere(config).multiplyScalar(config.cohesionWeight);
+            const boundary = this.boundaryForce(config).multiplyScalar(config.boundaryForce);
+
+            this.applyForce(separation, config);
+            this.applyForce(alignment, config);
+            this.applyForce(cohesion, config);
+            this.applyForce(boundary, config);
+        }
 
         // Optional behaviors
         if (config.wanderWeight > 0) {

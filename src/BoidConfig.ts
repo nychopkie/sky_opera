@@ -53,6 +53,11 @@ export class BoidConfig {
     enableFlocking: boolean = true;      // Enable flocking behavior
     leaderFollowWeight: number = 0.0;    // Leader following weight
     leaderIds: Set<number> = new Set();  // Leader ID set
+    // Group-aware behavior: when enabled, alignment and cohesion applies only within same group,
+    // while inter-group separation uses a configurable distance/weight.
+    groupAwareMode: boolean = false;
+    interGroupSeparationDistance: number = 50;
+    interGroupSeparationWeight: number = 2.0;
 
     // ========== Performance Optimization ==========
     spatialHashCellSize: number = 50;    // Spatial hash grid cell size
