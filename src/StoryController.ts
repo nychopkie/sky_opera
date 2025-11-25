@@ -186,7 +186,7 @@ export class StoryController {
             const angleAround = (2 * Math.PI * g) / numGroups;
             const center = new Vector3(
                 Math.cos(angleAround) * this.config.scene1_splitApartDistance,
-                10,
+                0,
                 Math.sin(angleAround) * this.config.scene1_splitApartDistance
             );
 
@@ -206,7 +206,7 @@ export class StoryController {
 
                 const targetPos = new Vector3(
                     center.x + radius * Math.cos(theta),
-                    center.y + g*30, // assign height according to group to have better view on ground
+                    center.y + g*50, // assign height according to group to have better view on ground
                     center.z + radius * Math.sin(theta)
                 );
 
@@ -219,7 +219,7 @@ export class StoryController {
                 }
 
                 // only show boids when they arrive at their positions
-                if (progress >= 0.2) {
+                if (progress >= 0.3) {
                     boid.isVisible = true;
                 }
             }
@@ -237,7 +237,7 @@ export class StoryController {
 
             // 背景组的无人机在此场景中逐渐亮起
             if (i >= this.config.initialBoidCount) {
-                boid.lightIntensity = Math.min(1.0, Math.pow(progress,0.7)); // gradually light up
+                boid.lightIntensity = Math.min(1.0, progress * 3); // gradually light up
             }
         });
     }
@@ -253,7 +253,7 @@ export class StoryController {
 
             boid.storyTarget!.set(
                 radius * Math.cos(theta) * Math.sin(phi),
-                10 + radius * Math.sin(theta) * Math.sin(phi) + 300, // Y 也有一些偏移，形成立体花朵
+                10 + radius * Math.sin(theta) * Math.sin(phi), // Y 也有一些偏移，形成立体花朵
                 radius * Math.cos(phi)
             );
         });
@@ -287,8 +287,8 @@ export class StoryController {
             const r = R * (0.3 + 0.7 * radialFactor); // keep minimum radius so center isn't empty
 
             const target = new Vector3(
-                r * Math.cos(angle),
-                300,
+                0, // image at center
+                r * Math.cos(angle) + 300, // elevate the star shape
                 r * Math.sin(angle)
             );
 
@@ -296,12 +296,7 @@ export class StoryController {
             if (!boid.storyTarget) boid.storyTarget = new Vector3();
             // Use lerp with progress to provide a smooth arrival; add a tiny per-boid offset
             // so they don't perfectly overlap when r is identical.
-            const jitter = 0.0001 * (i % 7);
             boid.storyTarget = boid.storyTarget.lerp(target, Math.min(1, progress));
-
-            // Show and light up boids as they move into formation
-            boid.isVisible = true;
-            boid.lightIntensity = Math.min(1, 0.5 + progress * 0.5);
 
             // keep color if group present, else default to white
             if (boid.groupData && boid.groupData.color) {
@@ -333,7 +328,7 @@ export class StoryController {
 
     private updateScene5_Split(): void {
         const numGroups = this.config.groups.length;
-        this.boidSystem.boids.forEach((boid, i) => {
+        this.boidSystem.boids.forEach(boid => {
             if (boid.groupData) {
                 const groupIndex = this.config.groups.indexOf(boid.groupData);
                 const angle = (groupIndex / numGroups) * Math.PI * 2;
@@ -341,7 +336,7 @@ export class StoryController {
                 const centerOfMass = boid.storyTarget!.clone(); // 从上一场景的位置开始
                 const targetPos = new Vector3(
                     Math.cos(angle) * this.config.scene5_splitApartDistance,
-                    10,
+                    200,
                     Math.sin(angle) * this.config.scene5_splitApartDistance
                 );
 
