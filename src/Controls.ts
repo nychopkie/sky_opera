@@ -43,7 +43,7 @@ export class Controls {
         };
 
         const presetsFolder = this.gui.folders.find(f => f._title === 'Preset Modes') || this.gui.addFolder('Preset Modes');
-        presetsFolder.add(storyControls, 'toggleStory').name('🎇 Play HKUST Story');
+        presetsFolder.add(storyControls, 'toggleStory').name('🎇 Play Demo Story');
     }
 
     /**

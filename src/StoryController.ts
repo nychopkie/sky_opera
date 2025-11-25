@@ -15,13 +15,16 @@ export interface StoryConfig {
     scene1_duration: number;
     scene2_joinDistance: number;
     scene2_duration: number;
-    scene3_shapeType: string[];
-    scene3_shapeRadius: number;
+    scene3_expansionRadius: number;
     scene3_duration: number;
+    scene4_shapeRadius: number;
+    scene4_duration: number;
+    scene5_splitApartDistance: number;
+    scene5_duration: number;
 }
 
 // type StoryScene = 'inactive' | 'scene1_spiral' | 'scene2_expand' | 'scene3_split';
-type StoryScene = 'inactive' | 'scene1_split' | 'scene2_join' | 'scene3_shapes';
+type StoryScene = 'inactive' | 'scene1_split' | 'scene2_join' | 'scene3_expand' | 'scene4_shapes' | 'scene5_split';
 
 /**
  * 这是一个用于控制无人机群表演特定故事的控制器。
@@ -65,11 +68,11 @@ export class StoryController {
 
             if (index < this.config.initialBoidCount) {
                 this.initialBoids.push(b);
-                b.isVisible = true;
+                b.isVisible = false;
                 b.lightIntensity = 1.0; // 初始组直接点亮
             } else {
                 this.backgroundBoids.push(b);
-                b.isVisible = true; // 先设置为可见，但灯光为0，在黑暗中不可见
+                b.isVisible = false; // 先设置为可见，但灯光为0，在黑暗中不可见
                 b.lightIntensity = 0.0;
             }
             b.storyTarget = new Vector3(); // 为每个boid初始化storyTarget
@@ -107,13 +110,28 @@ export class StoryController {
             case 'scene2_join':
                 this.updateScene2_Join();
                 if (this.sceneTime >= this.config.scene2_duration) {
-                    this.currentScene = 'scene3_shapes';
+                    this.currentScene = 'scene3_expand';
                     this.sceneTime = 0;
                 }
                 break;
-            case 'scene3_shapes':
-                this.updateScene3_Shape();
+            case 'scene3_expand':
+                this.updateScene3_Expand();
                 if (this.sceneTime >= this.config.scene3_duration) {
+                    this.currentScene = 'scene4_shapes';
+                    this.sceneTime = 0;
+                }
+                break;
+            case 'scene4_shapes':
+                this.updateScene4_Shape();
+                if (this.sceneTime >= this.config.scene4_duration) {
+                    this.currentScene = 'scene5_split';
+                    this.sceneTime = 0;
+                    this.assignGroupsForScene5();
+                }
+                break;
+            case 'scene5_split':
+                this.updateScene5_Split();
+                if (this.sceneTime >= this.config.scene5_duration) {
                     this.stop(); // 故事结束
                 }
                 break;
@@ -138,6 +156,7 @@ export class StoryController {
             // propagate color if present
             if (boid.groupData && boid.groupData.color) boid.color = boid.groupData.color;
         }
+        
     }
     
     private updateScene1_Split(): void {
@@ -187,17 +206,22 @@ export class StoryController {
 
                 const targetPos = new Vector3(
                     center.x + radius * Math.cos(theta),
-                    center.y + (this.config.scene1_spiralHeight || 0) * (i / Math.max(1, groupBoids.length)),
+                    center.y + g*30, // assign height according to group to have better view on ground
                     center.z + radius * Math.sin(theta)
                 );
 
                 // Smoothly interpolate existing storyTarget toward the spiral target
                 boid.storyTarget = boid.storyTarget!.lerp(targetPos, progress);
-                // make group visible and set light/color
-                // boid.isVisible = true;
-                // if (boid.groupData && boid.groupData.color) boid.color = boid.groupData.color;
-                // // slightly increase light for visible group members
-                // boid.lightIntensity = 0.8;
+
+                // 背景组跟随飞行，但保持熄灯
+                if (i >= this.config.initialBoidCount) {
+                    boid.lightIntensity = 0;
+                }
+
+                // only show boids when they arrive at their positions
+                if (progress >= 0.2) {
+                    boid.isVisible = true;
+                }
             }
         }
     }
@@ -208,76 +232,125 @@ export class StoryController {
         const progress = this.sceneTime / this.config.scene2_duration;
         // move boids to the center
         this.boidSystem.boids.forEach((boid, i) => {
-            const targetPos = new Vector3(0, 10, 0);
+            const targetPos = new Vector3(0, 300, 0);
             boid.storyTarget = boid.storyTarget!.lerp(targetPos, progress);
 
             // 背景组的无人机在此场景中逐渐亮起
             if (i >= this.config.initialBoidCount) {
-                boid.lightIntensity = Math.min(1.0, progress); // 进度过半时完全点亮
+                boid.lightIntensity = Math.min(1.0, Math.pow(progress,0.7)); // gradually light up
             }
         });
     }
 
     // ================================ SCENE 3 ================================
-    // scene req: the swarm then breaks, and each boid would pause having swarming behaviours and form shapes according to the cooridinates assigned to them
-    private updateScene3_Shape(): void {
-        // will show the shapes defined in config
-        // boids stop jittering and go to separate coordinates to form shapes
-        // in a sense, this stops the boids from flocking behavior and just go to target positions
+    private updateScene3_Expand(): void {
         const progress = this.sceneTime / this.config.scene3_duration;
-        const numShapes = this.config.scene3_shapeType.length;
-        this.boidSystem.boids.forEach((boid, i) => {
-            const shapeIndex = i % numShapes;
-            const shapeType = this.config.scene3_shapeType[shapeIndex];
-            const radius = this.config.scene3_shapeRadius;
-            const anglePerBoid = (2 * Math.PI) / Math.floor(this.boidSystem.boids.length / numShapes);
-            const theta = anglePerBoid * Math.floor(i / numShapes);
-            
-            // boid configs o behaviour: stop flocking of the boid, go to target positions
-            this.boidSystem.config.enableFlocking = false;
-            
-            let targetPos = new Vector3();
-            switch (shapeType) {
-                case 'circle':
-                    targetPos.set(
-                        radius * Math.cos(theta),
-                        10,
-                        radius * Math.sin(theta)
-                    );
-                    break;
-                // Add other shape cases here
-                case 'square':
-                    targetPos.set(
-                        radius * (Math.cos(theta) >= 0 ? 1 : -1),
-                        10,
-                        radius * (Math.sin(theta) >= 0 ? 1 : -1)
-                    );
-                    break;
-                case 'triangle':
-                    targetPos.set(
-                        radius * (Math.cos(theta) >= 0 ? 1 : -1) * (1 - Math.abs(Math.sin(theta))),
-                        10,
-                        radius * (Math.sin(theta) >= 0 ? 1 : -1) * (1 - Math.abs(Math.cos(theta)))
-                    );
-                    break;
-                case 'pentagon':
-                    targetPos.set(
-                        radius * Math.cos(theta) * (Math.abs(Math.cos(theta)) + Math.abs(Math.sin(theta))) / 2,
-                        10,
-                        radius * Math.sin(theta) * (Math.abs(Math.cos(theta)) + Math.abs(Math.sin(theta))) / 2
-                    );
-                    break;
-                case 'hexagon':
-                    targetPos.set(
-                        radius * Math.cos(theta) * (Math.abs(Math.cos(theta)) + Math.abs(Math.sin(theta))) / 1.5,
-                        10,
-                        radius * Math.sin(theta) * (Math.abs(Math.cos(theta)) + Math.abs(Math.sin(theta))) / 1.5
-                    );
-                    break;
-            }
+        const radius = this.config.scene3_expansionRadius * progress;
 
-            // Smoothly interpolate to the target position
-            boid.storyTarget = boid.storyTarget!.lerp(targetPos, progress);
+        this.boidSystem.boids.forEach((boid, i) => {
+            const phi = Math.acos(-1 + (2 * i) / this.config.totalBoidCount);
+            const theta = Math.sqrt(this.config.totalBoidCount * Math.PI) * phi;
+
+            boid.storyTarget!.set(
+                radius * Math.cos(theta) * Math.sin(phi),
+                10 + radius * Math.sin(theta) * Math.sin(phi) + 300, // Y 也有一些偏移，形成立体花朵
+                radius * Math.cos(phi)
+            );
         });
     }
+
+
+    // ================================ SCENE 4 ================================
+    // scene req: the swarm then breaks, and each boid would pause having swarming behaviours and form shapes according to the cooridinates assigned to them
+    private updateScene4_Shape(): void {
+        // Form a star-like shape using a polar/radial curve.
+        // We'll map each boid to a point on a parametric star curve so the whole
+        // swarm outlines a star. Use a smooth interpolation from current
+        // storyTarget to the final shape using the scene progress.
+        const total = Math.max(1, this.config.totalBoidCount);
+        const progress = Math.min(1, this.sceneTime / Math.max(0.0001, this.config.scene4_duration));
+        const R = this.config.scene4_shapeRadius || 50;
+
+        // number of star lobes (5 is the common star). You can tune this via config in future.
+        const lobes = 5;
+
+        for (let i = 0; i < this.boidSystem.boids.length; i++) {
+            const boid = this.boidSystem.boids[i];
+            if (!boid) continue;
+
+            // Angle around circle
+            const angle = (i / total) * Math.PI * 2;
+
+            // A simple star-like radial modulation using cosine creates sharp points.
+            // r varies between ~0 and R depending on the lobes.
+            const radialFactor = 0.5 + 0.5 * Math.cos(lobes * angle);
+            const r = R * (0.3 + 0.7 * radialFactor); // keep minimum radius so center isn't empty
+
+            const target = new Vector3(
+                r * Math.cos(angle),
+                300,
+                r * Math.sin(angle)
+            );
+
+            // Smoothly move storyTarget toward the star target as scene progresses.
+            if (!boid.storyTarget) boid.storyTarget = new Vector3();
+            // Use lerp with progress to provide a smooth arrival; add a tiny per-boid offset
+            // so they don't perfectly overlap when r is identical.
+            const jitter = 0.0001 * (i % 7);
+            boid.storyTarget = boid.storyTarget.lerp(target, Math.min(1, progress));
+
+            // Show and light up boids as they move into formation
+            boid.isVisible = true;
+            boid.lightIntensity = Math.min(1, 0.5 + progress * 0.5);
+
+            // keep color if group present, else default to white
+            if (boid.groupData && boid.groupData.color) {
+                boid.color.set(boid.groupData.color);
+            }
+        }
+    }
+
+    // ================================ SCENE 5 ================================
+    private assignGroupsForScene5(): void {
+        let boidIndex = 0;
+        this.config.groups.forEach(group => {
+            const groupSize = Math.floor(this.config.totalBoidCount * group.ratio);
+            for (let i = 0; i < groupSize && boidIndex < this.config.totalBoidCount; i++) {
+                const boid = this.boidSystem.boids[boidIndex];
+                if (boid) {
+                    boid.groupData = group; // 将分组信息附加到boid上
+                }
+                boidIndex++;
+            }
+        });
+
+        // 将剩余的boids分配给最大的组
+        const largestGroup = this.config.groups.reduce((a, b) => a.ratio > b.ratio ? a : b);
+        for (; boidIndex < this.config.totalBoidCount; boidIndex++) {
+            this.boidSystem.boids[boidIndex].groupData = largestGroup;
+        }
+    }
+
+    private updateScene5_Split(): void {
+        const numGroups = this.config.groups.length;
+        this.boidSystem.boids.forEach((boid, i) => {
+            if (boid.groupData) {
+                const groupIndex = this.config.groups.indexOf(boid.groupData);
+                const angle = (groupIndex / numGroups) * Math.PI * 2;
+
+                const centerOfMass = boid.storyTarget!.clone(); // 从上一场景的位置开始
+                const targetPos = new Vector3(
+                    Math.cos(angle) * this.config.scene5_splitApartDistance,
+                    10,
+                    Math.sin(angle) * this.config.scene5_splitApartDistance
+                );
+
+                // 从花朵形态平滑过渡到分组形态
+                const progress = this.sceneTime / this.config.scene5_duration;
+                boid.storyTarget = centerOfMass.lerp(targetPos, progress);
+                boid.color.set(boid.groupData.color);
+            }
+        });
+    }
+
 }

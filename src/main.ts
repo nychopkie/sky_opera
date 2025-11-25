@@ -24,7 +24,10 @@ class App {
         const config = new BoidConfig();
         config.bounds.min.set(-500, 0, -500);
         config.bounds.max.set(500, 500, 500);
-        config.maxSpeed = 1.0
+        config.maxSpeed = 2.0;
+
+        // set the drone size to be larger for better visibility
+        config.droneSize = 2.0;
 
         // Initialize system
         this.boidSystem = new BoidSystem(config);
@@ -54,14 +57,17 @@ class App {
             // scene2_duration: 8,
             // scene3_splitApartDistance: 80,
             // scene3_duration: 12
-            scene1_spiralHeight: 50,
-            scene1_splitApartDistance: 200,
+            scene1_spiralHeight: 30,
+            scene1_splitApartDistance: 500,
             scene1_duration: 10,
-            scene2_joinDistance: 80,
-            scene2_duration: 10,
-            scene3_shapeType: ['circle', 'square', 'triangle', 'pentagon', 'hexagon'],
-            scene3_shapeRadius: 60,
-            scene3_duration: 25,
+            scene2_joinDistance: 200,
+            scene2_duration: 14,
+            scene3_expansionRadius: 100,
+            scene3_duration: 20,
+            scene4_shapeRadius: 100,
+            scene4_duration: 10,
+            scene5_splitApartDistance: 500,
+            scene5_duration: 10,
         };
         this.storyController = new StoryController(this.boidSystem, storyConfig);
 
