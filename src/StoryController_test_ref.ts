@@ -143,42 +143,46 @@ export class StoryController {
     // scene req: separate groups of swarms, each group is spiraling
     // grouping would need to have some bg boids and initial boids in each group
     private assignGroupsForScene1(): void {
-        const numGroups = this.config.groups.length;
-        if (numGroups === 0) return;
+        let boidIndex = 0;
+        this.config.groups.forEach(group => {
+            const groupSize = Math.floor(this.config.totalBoidCount * group.ratio);
+            for (let i = 0; i < groupSize && boidIndex < this.config.totalBoidCount; i++) {
+                const boid = this.boidSystem.boids[boidIndex];
+                if (boid) {
+                    boid.groupData = group; // 将分组信息附加到boid上
+                }
+                boidIndex++;
+            }
+        });
 
-        // Assign groups by index modulo number of groups
-        const maxBoids = Math.min(this.config.totalBoidCount, this.boidSystem.boids.length);
-        for (let i = 0; i < maxBoids; i++) {
-            const boid = this.boidSystem.boids[i];
-            if (!boid) continue;
-            const groupIndex = i % numGroups;
-            boid.groupData = this.config.groups[groupIndex];
-            // propagate color if present
-            if (boid.groupData && boid.groupData.color) boid.color = boid.groupData.color;
+        // 将剩余的boids分配给最大的组
+        const largestGroup = this.config.groups.reduce((a, b) => a.ratio > b.ratio ? a : b);
+        for (; boidIndex < this.config.totalBoidCount; boidIndex++) {
+            this.boidSystem.boids[boidIndex].groupData = largestGroup;
         }
-        
     }
     
     private updateScene1_Split(): void {
-        // scene req: separate groups of swarms, each group is spiraling
         const numGroups = this.config.groups.length;
         this.boidSystem.boids.forEach(boid => {
             if (boid.groupData) {
                 const groupIndex = this.config.groups.indexOf(boid.groupData);
                 const angle = (groupIndex / numGroups) * Math.PI * 2;
 
-                //
-                const centerOfMass = new Vector3(0, 0, 0); // 从上一场景的位置开始
+                const centerOfMass = boid.storyTarget!.clone(); // 从上一场景的位置开始
                 const targetPos = new Vector3(
-                    Math.cos(angle) * this.config.scene5_splitApartDistance,
+                    Math.cos(angle) * this.config.scene1_splitApartDistance,
                     200,
-                    Math.sin(angle) * this.config.scene5_splitApartDistance
+                    Math.sin(angle) * this.config.scene1_splitApartDistance
                 );
 
                 // 从花朵形态平滑过渡到分组形态
-                const progress = this.sceneTime / this.config.scene5_duration;
+                const progress = this.sceneTime / this.config.scene1_duration;
                 boid.storyTarget = centerOfMass.lerp(targetPos, progress);
                 boid.color.set(boid.groupData.color);
+
+                // make each boid visible
+                boid.isVisible = true;
             }
         });
     }
@@ -189,7 +193,7 @@ export class StoryController {
         const progress = this.sceneTime / this.config.scene2_duration;
         // move boids to the center
         this.boidSystem.boids.forEach((boid, i) => {
-
+            
             const centerOfMass = boid.storyTarget!.clone(); // 从上一场景的位置开始
             const targetPos = new Vector3(
                 0,

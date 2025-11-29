@@ -1,8 +1,6 @@
-import { min } from 'three/webgpu';
 import { Boid } from './Boid';
 import { BoidSystem } from './BoidSystem';
 import { Vector3, Color } from 'three';
-// import { BoidConfig } from './BoidConfig';
 
 // 可复用的故事配置接口
 export interface StoryConfig {
@@ -17,9 +15,7 @@ export interface StoryConfig {
     scene4_duration: number;
 }
 
-// type StoryScene = 'inactive' | 'scene1_spiral' | 'scene2_expand' | 'scene3_split';
-// type StoryScene = 'inactive' | 'scene1_split' | 'scene2_join' | 'scene3_expand' | 'scene4_shapes' | 'scene5_split';
-type StoryScene = 'inactive' | 'scene0_initPos' |'scene1_scattered' | 'scene2_formOutline' | 'scene3_expand' | 'scene4_factory' ;
+type StoryScene = 'inactive' | 'scene01_idle' | 'scene02_split' | 'scene1_conv' | 'scene2_shape' | 'scene3_coolShape' | 'scene4_circle' ;
 
 /**
  * 这是一个用于控制无人机群表演特定故事的控制器。
@@ -43,8 +39,6 @@ export class StoryController {
     private sceneTime: number = 0;
     private initialBoids: Boid[] = [];
     private backgroundBoids: Boid[] = [];
-    // Groups organized for scene1 (array of arrays of Boids)
-    private groups: Boid[][] = [];
 
     constructor(boidSystem: BoidSystem, config: StoryConfig) {
         this.boidSystem = boidSystem;
@@ -54,23 +48,23 @@ export class StoryController {
     public start(): void {
         this.boidSystem.initializeBoids(this.config.totalBoidCount);
         this.boidSystem.boids.forEach((b, index) => {
+            // 所有无人机从地面中心开始
             b.position.set(0, 0, 0);
             b.velocity.set(0, 0, 0);
 
             if (index < this.config.initialBoidCount) {
                 this.initialBoids.push(b);
-                b.isVisible = false;
+                b.isVisible = true;
                 b.lightIntensity = 1.0; // 初始组直接点亮
             } else {
                 this.backgroundBoids.push(b);
-                b.isVisible = false; // 先设置为可见，但灯光为0，在黑暗中不可见
+                b.isVisible = true; // 先设置为可见，但灯光为0，在黑暗中不可见
                 b.lightIntensity = 0.0;
             }
             b.storyTarget = new Vector3(); // 为每个boid初始化storyTarget
         });
 
-        // set initial scene
-        this.currentScene = 'scene0_initPos';
+        this.currentScene = 'scene01_idle';
         this.sceneTime = 0;
     }
 
@@ -78,7 +72,7 @@ export class StoryController {
         this.currentScene = 'inactive';
         this.boidSystem.boids.forEach(b => {
             b.storyTarget = null;
-            b.lightIntensity = 0.0; // close all light when end
+            b.lightIntensity = 1.0;
         });
         this.initialBoids = [];
         this.backgroundBoids = [];
@@ -90,36 +84,43 @@ export class StoryController {
         this.sceneTime += deltaTime;
 
         switch (this.currentScene) {
-            case 'scene0_initPos':
-                this.updateScene0_InitPos();
-                if (this.sceneTime >= 5.0) { // wait for 5 seconds
-                    this.currentScene = 'scene1_scattered';
+            case 'scene01_idle':
+                this.updateScene0_idle();
+                if (this.sceneTime >= 5) {
+                    this.currentScene = 'scene02_split';
+                    this.sceneTime = 0;
+                    this.assignGroupsForScene0();
+                }
+                break;
+            case 'scene02_split':
+                this.updateScene0_split();
+                if (this.sceneTime >= 5) {
+                    this.currentScene = 'scene1_conv';
                     this.sceneTime = 0;
                 }
                 break;
-            case 'scene1_scattered':
-                this.updateScene1_Scattered();
+            case 'scene1_conv':
+                this.updateScene1_conv();
                 if (this.sceneTime >= this.config.scene1_duration) {
-                    this.currentScene = 'scene2_formOutline';
+                    this.currentScene = 'scene2_shape';
                     this.sceneTime = 0;
                 }
-                break;
-            case 'scene2_formOutline':
-                this.updateScene2_FormOutline();
+            case 'scene2_shape':
+                this.updateScene2_shape();
                 if (this.sceneTime >= this.config.scene2_duration) {
-                    this.currentScene = 'scene3_expand';
+                    this.currentScene = 'scene3_coolShape';
                     this.sceneTime = 0;
                 }
                 break;
-            case 'scene3_expand':
-                this.updateScene3_Expand();
+            case 'scene3_coolShape':
+                this.updateScene3_coolShape();
                 if (this.sceneTime >= this.config.scene3_duration) {
-                    this.currentScene = 'scene4_factory';
+                    this.currentScene = 'scene4_circle';
                     this.sceneTime = 0;
                 }
                 break;
-            case 'scene4_factory':
-                this.updateScene4_Factory();
+            case 'scene4_circle':
+                this.updateScene4_circle();
                 if (this.sceneTime >= this.config.scene4_duration) {
                     this.stop(); // 故事结束
                 }
@@ -128,138 +129,130 @@ export class StoryController {
     }
     
     // here start the scene update methods
-    // ================================ SCENE 0 ================================
-    private updateScene0_InitPos(): void {
-        // In this scene, boids fly to initial position from 0,0,0
-        this.boidSystem.boids.forEach((boid) => {
-            const targetX = Math.random() * 200 * Math.sign(Math.random() - 0.5);
-            const targetY = Math.random() * 200; // Keep them above ground
-            const targetZ = Math.random() * 200 * Math.sign(Math.random() - 0.5);
-            // move slowly to scattered position from previous position according to progress
-            boid.storyTarget!.set(targetX, targetY, targetZ);
+    // ============================================================================
+    private updateScene0_idle(): void {
+        // set a small value for each boid as the target to keep them hovering in place
+        this.boidSystem.boids.forEach(b => {
+            b.storyTarget!.set(
+                b.position.x + (Math.random() - 0.5) * 10,
+                b.position.y + (Math.random() - 0.5) * 10,
+                b.position.z + (Math.random() - 0.5) * 10
+            );
         });
     }
 
-    // ================================ SCENE 1 ================================
-    // boids in a scattered position, not doing swarm behaviors yet
-    // also pulse with breathing light >> sin function period
-    private updateScene1_Scattered(): void {
-        // scatter for all boids
-        this.boidSystem.boids.forEach((boid, i) => {
-            const progress = this.sceneTime / this.config.scene1_duration
-
-            // change the visibility according to progress
-            if (progress > 0.1) {
-                // only show initial boids
-                if (i < this.config.initialBoidCount) {
-                    boid.isVisible = true;
-                } else {
-                    boid.isVisible = false;
+    // split into groups according to the config, with initial boids in each group according to ratio
+    private assignGroupsForScene0(): void {
+        let boidIndex = 0;
+        this.config.groups.forEach(group => {
+            const groupSize = Math.floor(this.config.totalBoidCount * group.ratio);
+            for (let i = 0; i < groupSize && boidIndex < this.config.totalBoidCount; i++) {
+                const boid = this.boidSystem.boids[boidIndex];
+                if (boid) {
+                    boid.groupData = group; // 将分组信息附加到boid上
                 }
-                // boid.velocity.set(0, 0, 0);
-                boid.storyTarget = null;
+                boidIndex++;
             }
+        });
 
-            // the light of the boids have a breathing effect (periodic change)
-            // the light should range from 0 to 1 periodically
-            boid.lightIntensity = Math.sin(progress * Math.PI * this.config.scene1_duration/5 + 3* Math.PI/2 * i/this.boidSystem.boids.length) * 0.5 + 0.5; // fade in effect
+        // 将剩余的boids分配给最大的组
+        const largestGroup = this.config.groups.reduce((a, b) => a.ratio > b.ratio ? a : b);
+        for (; boidIndex < this.config.totalBoidCount; boidIndex++) {
+            this.boidSystem.boids[boidIndex].groupData = largestGroup;
+        }
+    }
+
+    private updateScene0_split(): void {
+        const numGroups = this.config.groups.length;
+        this.boidSystem.boids.forEach(boid => {
+            if (boid.groupData) {
+                const groupIndex = this.config.groups.indexOf(boid.groupData);
+                const angle = (groupIndex / numGroups) * Math.PI * 2;
+
+                const centerOfMass = boid.storyTarget!.clone(); // 从上一场景的位置开始
+                const targetPos = new Vector3(
+                    Math.cos(angle) * 300,
+                    200,
+                    Math.sin(angle) * 300
+                );
+
+                // 从花朵形态平滑过渡到分组形态
+                const progress = this.sceneTime / 10;
+                boid.storyTarget = centerOfMass.lerp(targetPos, progress);
+                boid.color.set(boid.groupData.color);
+            }
         });
     }
 
-    // ================================ SCENE 2 ================================
-    // form 
-    private updateScene2_FormOutline(): void {
-        // to stop motions >> set the velocity to 0 after arriving at target
-        // form shape of shenzheng
-        // form outline using the initialBoids only, others stay invisible aka intensity 0
+    // ============================================================================
+    private updateScene1_conv(): void {
+        // 场景1：无人机缓慢聚拢到中心位置
+        // ligth up all the initial boids
+        this.initialBoids.forEach(b => {
+            b.isVisible = true;
+        });
+
+        const center = new Vector3(0, 250, 0);
+        this.boidSystem.boids.forEach(b => {
+            const progress = this.sceneTime / 5;
+            const centerOfMass = b.storyTarget!.clone(); // 从上一场景的位置开始
+            b.storyTarget = centerOfMass.lerp(center, progress);
+            b.lightIntensity = Math.min(b.lightIntensity + 0.01, 1.0); // 渐亮
+        });
+    }
+
+    // ============================================================================
+    private updateScene2_shape(): void {
+        // 场景2：无人机形成一个特定形状（flower）
+        const shapeCenter = new Vector3(0, 250, 0);
+        const radius = 100;
+        const angleStep = (2 * Math.PI) / this.initialBoids.length;
+        this.initialBoids.forEach((b, index) => {
+            const angle = index * angleStep;
+            b.storyTarget!.set(
+                shapeCenter.x + radius * Math.cos(angle),
+                shapeCenter.y,
+                shapeCenter.z + radius * Math.sin(angle)
+            );
+        });
+    }
+
+    // ============================================================================
+    private updateScene3_coolShape(): void {
         const progress = this.sceneTime / this.config.scene2_duration;
-        this.initialBoids.forEach((boid, i) => {
+        this.boidSystem.boids.forEach((boid, i) => {
             // outline of shenzheng coordinates (simplified)
-            // just make an oval shape for now 
             const angle = (i / this.initialBoids.length) * Math.PI * 2;
-            const radius = 100;
-            const targetX = 10 + 200 * Math.cos(angle);
-            const targetY = 30 + radius * Math.sin(angle)+ 200; // some vertical variation
-            const targetZ = 0;
+            const radius = 200;
+            const targetX = radius * Math.cos(angle);
+            const targetY = 150 + Math.sin(angle * 3) * 50; // some vertical variation
+            const targetZ = radius * Math.sin(angle);
             boid.storyTarget = new Vector3();
-            // go to position
             boid.storyTarget!.set(targetX, targetY, targetZ);
             boid.isVisible = true;
-            // slowly increase light intensity from current to 1.0
-            boid.lightIntensity = Math.min(1.0, boid.lightIntensity + progress * 0.1);
-        });
 
-        // background boids remain invisible
-        this.backgroundBoids.forEach((boid) => {
-            boid.isVisible = false;
-            boid.lightIntensity = 0.0;
-            boid.storyTarget = new Vector3();
-            // move to shekou
-            boid.storyTarget!.set(
-                10 - 200 * 0.8, 
-                200 + 30 - 100 * 0.8, 
-                0);
+            // the light intensity is pulsing
+            boid.lightIntensity = Math.sin(progress * Math.PI * 4 + (i / this.boidSystem.boids.length) * Math.PI * 2) * 0.5 + 0.5;
         });
     }
 
-    // ================================ SCENE 3 ================================
-    // shekou expand shere with increasing pulsing light
-    private updateScene3_Expand(): void {
-        // background boids expand outward in a sphere
-        const progress = this.sceneTime / this.config.scene3_duration;
-        const radius = 400 * progress;
-        this.backgroundBoids.forEach((boid, i) => {
-            boid.isVisible = true;
-            const phi = Math.acos(-1 + (2 * i) / this.config.totalBoidCount);
-            const theta = Math.sqrt(this.config.totalBoidCount * Math.PI) * phi;
+    // ============================================================================
+    private updateScene4_circle(): void {
+        const center = new Vector3(0, 250, 0);
+        const radius = 150;
+        const angleStep = (2 * Math.PI) / this.boidSystem.boids.length;
 
-            // expand at their current position
+        this.boidSystem.boids.forEach((boid, index) => {
+            const angle = index * angleStep + (this.sceneTime * 0.5); // 添加时间因子实现旋转效果
             boid.storyTarget!.set(
-                radius * Math.cos(theta) * Math.sin(phi) + 10 - 200 * 0.8,
-                10 + radius * Math.sin(theta) * Math.sin(phi) + 200 + 30 - 100 * 0.8,
-                0
+                center.x + radius * Math.cos(angle),
+                center.y + radius * Math.sin(angle),
+                center.z
             );
 
-            // increase light increase in a sinusoidal manner with period getting shorter
-            boid.lightIntensity = Math.sin(progress * Math.PI * 10 * 5 * progress + 3* Math.PI/2 * i/this.boidSystem.boids.length) * 0.5 + 0.5; // fade in effect
+            const progress = this.sceneTime / this.config.scene4_duration;
+
+            boid.lightIntensity = Math.sin(progress * Math.PI * 4 + (index / this.boidSystem.boids.length) * Math.PI * 2) * 0.5 + 0.5;
         });
     }
-
-    // ================================ SCENE 4 ================================
-    // should be factory, but i put square as placeholder for now
-    private updateScene4_Factory(): void {
-        // all boids move to form a square factory shape
-        const progress = this.sceneTime / this.config.scene4_duration;
-        const factorySize = 150;
-        this.backgroundBoids.forEach((boid, i) => {
-            // calculate position in a square grid
-            const perSide = Math.ceil(Math.sqrt(this.config.totalBoidCount));
-            const row = Math.floor(i / perSide);
-            const col = i % perSide;
-            const targetX = (col - perSide / 2) * (factorySize / perSide);
-            const targetY = (row - perSide / 2) * (factorySize / perSide) + 50;
-            const targetZ = 0;
-            boid.storyTarget!.set(targetX, targetY, targetZ);
-            boid.isVisible = true;
-            boid.lightIntensity = 1.0;
-        });
-        // use initial boids to form smokestacks
-        const smokestackHeight = 200;
-        const smokestackWidth = 20;
-        this.initialBoids.forEach((boid, i) => {
-            // ]basically the factory chimney is just a rectangle on top of the square
-            const stacksPerSide = Math.ceil(Math.sqrt(this.initialBoids.length));
-            const row = Math.floor(i / stacksPerSide);
-            const col = i % stacksPerSide;
-            const targetX = smokestackHeight / 2 - 20;
-            const targetY = (col - stacksPerSide / 2) * smokestackWidth * 2;
-            const targetZ = 0;
-            boid.storyTarget!.set(targetX, targetY, targetZ);
-            boid.isVisible = true;
-            boid.lightIntensity = 1.0;
-        });
-
-    }
-
-
 }

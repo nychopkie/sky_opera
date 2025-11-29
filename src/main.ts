@@ -71,10 +71,10 @@ class App {
                 { ratio: 0.002, color: new Color(0xff00ff) },  // shanxi
                 { ratio: 0.006, color: new Color(0xff00ff) },  // others
             ],
-            scene1_duration: 40, // should be 50, for now test set it as 5
-            scene2_duration: 10, // should be 10, for now test set it as 5
-            scene3_duration: 40,
-            scene4_duration: 20,
+            scene1_duration: 30,
+            scene2_duration: 45,
+            scene3_duration: 45,
+            scene4_duration: 30,
         };
         this.storyController = new StoryController(this.boidSystem, storyConfig);
 
