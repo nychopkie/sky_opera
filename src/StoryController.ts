@@ -15,7 +15,7 @@ export interface StoryConfig {
     scene4_duration: number;
 }
 
-type StoryScene = 'inactive' | 'scene01_idle' | 'scene02_split' | 'scene1_conv' | 'scene2_shape' | 'scene3_coolShape' | 'scene4_circle' ;
+type StoryScene = 'inactive' | 'scene0_idle' | 'scene0_split' | 'scene1_conv' | 'scene2_shape' | 'scene3_coolShape' | 'scene4_circle' ;
 
 /**
  * 这是一个用于控制无人机群表演特定故事的控制器。
@@ -59,12 +59,12 @@ export class StoryController {
             } else {
                 this.backgroundBoids.push(b);
                 b.isVisible = true; // 先设置为可见，但灯光为0，在黑暗中不可见
-                b.lightIntensity = 0.0;
+                b.lightIntensity = 1.0;
             }
             b.storyTarget = new Vector3(); // 为每个boid初始化storyTarget
         });
 
-        this.currentScene = 'scene01_idle';
+        this.currentScene = 'scene0_idle';
         this.sceneTime = 0;
     }
 
@@ -84,17 +84,17 @@ export class StoryController {
         this.sceneTime += deltaTime;
 
         switch (this.currentScene) {
-            case 'scene01_idle':
+            case 'scene0_idle':
                 this.updateScene0_idle();
                 if (this.sceneTime >= 5) {
-                    this.currentScene = 'scene02_split';
-                    this.sceneTime = 0;
+                    this.currentScene = 'scene0_split';
                     this.assignGroupsForScene0();
+                    this.sceneTime = 0;
                 }
                 break;
-            case 'scene02_split':
+            case 'scene0_split':
                 this.updateScene0_split();
-                if (this.sceneTime >= 5) {
+                if (this.sceneTime >= 20) {
                     this.currentScene = 'scene1_conv';
                     this.sceneTime = 0;
                 }
@@ -165,6 +165,10 @@ export class StoryController {
     private updateScene0_split(): void {
         const numGroups = this.config.groups.length;
         this.boidSystem.boids.forEach(boid => {
+            this.initialBoids.forEach(b => {
+                b.isVisible = true;
+                b.lightIntensity = 1.0;
+            });
             if (boid.groupData) {
                 const groupIndex = this.config.groups.indexOf(boid.groupData);
                 const angle = (groupIndex / numGroups) * Math.PI * 2;
@@ -187,14 +191,11 @@ export class StoryController {
     // ============================================================================
     private updateScene1_conv(): void {
         // 场景1：无人机缓慢聚拢到中心位置
-        // ligth up all the initial boids
-        this.initialBoids.forEach(b => {
-            b.isVisible = true;
-        });
 
         const center = new Vector3(0, 250, 0);
         this.boidSystem.boids.forEach(b => {
-            const progress = this.sceneTime / 5;
+            b.isVisible = true;
+            const progress = this.sceneTime / this.config.scene1_duration;
             const centerOfMass = b.storyTarget!.clone(); // 从上一场景的位置开始
             b.storyTarget = centerOfMass.lerp(center, progress);
             b.lightIntensity = Math.min(b.lightIntensity + 0.01, 1.0); // 渐亮
@@ -204,17 +205,42 @@ export class StoryController {
     // ============================================================================
     private updateScene2_shape(): void {
         // 场景2：无人机形成一个特定形状（flower）
-        const shapeCenter = new Vector3(0, 250, 0);
-        const radius = 100;
-        const angleStep = (2 * Math.PI) / this.initialBoids.length;
-        this.initialBoids.forEach((b, index) => {
-            const angle = index * angleStep;
-            b.storyTarget!.set(
-                shapeCenter.x + radius * Math.cos(angle),
-                shapeCenter.y,
-                shapeCenter.z + radius * Math.sin(angle)
+        const total = Math.max(1, this.config.totalBoidCount);
+        const progress = Math.min(1, this.sceneTime / Math.max(0.0001, this.config.scene4_duration));
+        const R = 100;
+
+        // number of star lobes (5 is the common star). You can tune this via config in future.
+        const lobes = 5;
+
+        for (let i = 0; i < this.boidSystem.boids.length; i++) {
+            const boid = this.boidSystem.boids[i];
+            if (!boid) continue;
+
+            // Angle around circle
+            const angle = (i / total) * Math.PI * 2;
+
+            // A simple star-like radial modulation using cosine creates sharp points.
+            // r varies between ~0 and R depending on the lobes.
+            const radialFactor = 0.5 + 0.5 * Math.cos(lobes * angle);
+            const r = R * (0.3 + 0.7 * radialFactor); // keep minimum radius so center isn't empty
+
+            const target = new Vector3(
+                r * Math.sin(angle), // image at center
+                r * Math.cos(angle) + 300, // elevate the star shape
+                0
             );
-        });
+
+            // Smoothly move storyTarget toward the star target as scene progresses.
+            if (!boid.storyTarget) boid.storyTarget = new Vector3();
+            // Use lerp with progress to provide a smooth arrival; add a tiny per-boid offset
+            // so they don't perfectly overlap when r is identical.
+            boid.storyTarget = boid.storyTarget.lerp(target, Math.min(1, progress));
+
+            // keep color if group present, else default to white
+            if (boid.groupData && boid.groupData.color) {
+                boid.color.set(boid.groupData.color);
+            }
+        }
     }
 
     // ============================================================================
@@ -232,7 +258,7 @@ export class StoryController {
             boid.isVisible = true;
 
             // the light intensity is pulsing
-            boid.lightIntensity = Math.sin(progress * Math.PI * 4 + (i / this.boidSystem.boids.length) * Math.PI * 2) * 0.5 + 0.5;
+            boid.lightIntensity = Math.sin(progress * Math.PI * this.config.scene1_duration/5 + 3* Math.PI/2 * i/this.boidSystem.boids.length) * 0.5 + 0.5; ;
         });
     }
 
