@@ -10,21 +10,15 @@ export interface StoryConfig {
     // 定义最终分成的组及其比例和颜色
     groups: { ratio: number; color: Color }[];
     // 场景参数
-    scene1_spiralHeight: number
-    scene1_splitApartDistance: number;
     scene1_duration: number;
-    scene2_joinDistance: number;
     scene2_duration: number;
-    scene3_expansionRadius: number;
     scene3_duration: number;
-    scene4_shapeRadius: number;
     scene4_duration: number;
-    scene5_splitApartDistance: number;
-    scene5_duration: number;
 }
 
 // type StoryScene = 'inactive' | 'scene1_spiral' | 'scene2_expand' | 'scene3_split';
-type StoryScene = 'inactive' | 'scene1_split' | 'scene2_join' | 'scene3_expand' | 'scene4_shapes' | 'scene5_split';
+// type StoryScene = 'inactive' | 'scene1_split' | 'scene2_join' | 'scene3_expand' | 'scene4_shapes' | 'scene5_split';
+type StoryScene = 'inactive' | 'scene0_initPos' |'scene1_scattered' | 'scene2_formOutline' | 'scene3_focusNexpand' | 'scene4_factory' ;
 
 /**
  * 这是一个用于控制无人机群表演特定故事的控制器。
@@ -59,29 +53,24 @@ export class StoryController {
     public start(): void {
         this.boidSystem.initializeBoids(this.config.totalBoidCount);
         this.boidSystem.boids.forEach((b, index) => {
-            // 所有无人机从地面中心开始
-            // but starting should be seaprate
-            // aka set different position 
-            // shoud
             b.position.set(0, 0, 0);
             b.velocity.set(0, 0, 0);
 
             if (index < this.config.initialBoidCount) {
                 this.initialBoids.push(b);
-                b.isVisible = true;
+                b.isVisible = false;
                 b.lightIntensity = 1.0; // 初始组直接点亮
             } else {
                 this.backgroundBoids.push(b);
-                b.isVisible = true; // 先设置为可见，但灯光为0，在黑暗中不可见
-                b.lightIntensity = 1.0;
+                b.isVisible = false; // 先设置为可见，但灯光为0，在黑暗中不可见
+                b.lightIntensity = 0.0;
             }
             b.storyTarget = new Vector3(); // 为每个boid初始化storyTarget
         });
 
         // set initial scene
-        this.currentScene = 'scene1_split';
+        this.currentScene = 'scene0_initPos';
         this.sceneTime = 0;
-        this.assignGroupsForScene1();
     }
 
     public stop(): void {
@@ -100,38 +89,37 @@ export class StoryController {
         this.sceneTime += deltaTime;
 
         switch (this.currentScene) {
-            case 'scene1_split':
-                this.updateScene1_Split();
+            case 'scene0_initPos':
+                this.updateScene0_InitPos();
+                if (this.sceneTime >= 5.0) { // wait for 5 seconds
+                    this.currentScene = 'scene1_scattered';
+                    this.sceneTime = 0;
+                }
+                break;
+            case 'scene1_scattered':
+                this.updateScene1_Scattered();
                 if (this.sceneTime >= this.config.scene1_duration) {
-                    this.currentScene = 'scene2_join';
+                    this.currentScene = 'scene2_formOutline';
                     this.sceneTime = 0;
                 }
                 break;
-            case 'scene2_join':
-                this.updateScene2_Join();
+            case 'scene2_formOutline':
+                this.updateScene2_FormOutline();
                 if (this.sceneTime >= this.config.scene2_duration) {
-                    this.currentScene = 'scene3_expand';
+                    this.currentScene = 'scene3_focusNexpand';
                     this.sceneTime = 0;
                 }
                 break;
-            case 'scene3_expand':
-                this.updateScene3_Expand();
+            case 'scene3_focusNexpand':
+                this.updateScene3_FocusNexpand();
                 if (this.sceneTime >= this.config.scene3_duration) {
-                    this.currentScene = 'scene4_shapes';
+                    this.currentScene = 'scene4_factory';
                     this.sceneTime = 0;
                 }
                 break;
-            case 'scene4_shapes':
-                this.updateScene4_Shape();
+            case 'scene4_factory':
+                this.updateScene4_Factory();
                 if (this.sceneTime >= this.config.scene4_duration) {
-                    this.currentScene = 'scene5_split';
-                    this.sceneTime = 0;
-                    this.assignGroupsForScene5();
-                }
-                break;
-            case 'scene5_split':
-                this.updateScene5_Split();
-                if (this.sceneTime >= this.config.scene5_duration) {
                     this.stop(); // 故事结束
                 }
                 break;
@@ -139,178 +127,53 @@ export class StoryController {
     }
     
     // here start the scene update methods
-    // ================================ SCENE 1 ================================
-    // scene req: separate groups of swarms, each group is spiraling
-    // grouping would need to have some bg boids and initial boids in each group
-    private assignGroupsForScene1(): void {
-        const numGroups = this.config.groups.length;
-        if (numGroups === 0) return;
-
-        // Assign groups by index modulo number of groups
-        const maxBoids = Math.min(this.config.totalBoidCount, this.boidSystem.boids.length);
-        for (let i = 0; i < maxBoids; i++) {
-            const boid = this.boidSystem.boids[i];
-            if (!boid) continue;
-            const groupIndex = i % numGroups;
-            boid.groupData = this.config.groups[groupIndex];
-            // propagate color if present
-            if (boid.groupData && boid.groupData.color) boid.color = boid.groupData.color;
-        }
-        
+    // ================================ SCENE 0 ================================
+    private updateScene0_InitPos(): void {
+        // In this scene, boids fly to initial position from 0,0,0
+        this.boidSystem.boids.forEach((boid) => {
+            const targetX = Math.random() * 500 * Math.sign(Math.random() - 0.5);
+            const targetY = 100 + Math.random() * 400; // Keep them above ground
+            const targetZ = Math.random() * 500 * Math.sign(Math.random() - 0.5);
+            // move slowly to scattered position from previous position according to progress
+            boid.storyTarget!.set(targetX, targetY, targetZ);
+        });
     }
-    
-    private updateScene1_Split(): void {
-        // scene req: separate groups of swarms, each group is spiraling
-        const numGroups = this.config.groups.length;
-        this.boidSystem.boids.forEach(boid => {
-            if (boid.groupData) {
-                const groupIndex = this.config.groups.indexOf(boid.groupData);
-                const angle = (groupIndex / numGroups) * Math.PI * 2;
 
-                //
-                const centerOfMass = new Vector3(0, 0, 0); // 从上一场景的位置开始
-                const targetPos = new Vector3(
-                    Math.cos(angle) * this.config.scene5_splitApartDistance,
-                    200,
-                    Math.sin(angle) * this.config.scene5_splitApartDistance
-                );
+    // ================================ SCENE 1 ================================
+    // boids in a scattered position, not doing swarm behaviors yet
+    // also pulse with breathing light >> sin function period
+    private updateScene1_Scattered(): void {
+        // scatter for all boids
+        this.boidSystem.boids.forEach((boid, i) => {
+            const progress = this.sceneTime / this.config.scene1_duration
 
-                // 从花朵形态平滑过渡到分组形态
-                const progress = this.sceneTime / this.config.scene5_duration;
-                boid.storyTarget = centerOfMass.lerp(targetPos, progress);
-                boid.color.set(boid.groupData.color);
+            // change the visibility according to progress
+            if (progress > 0.1) {
+                boid.isVisible = true;
+                boid.velocity.set(0, 0, 0);
+                boid.storyTarget = null;
             }
+
+            // the light of the boids have a breathing effect (periodic change)
+            // the light should range from 0 to 1 periodically
+            boid.lightIntensity = Math.sin(progress * Math.PI * 4 + Math.PI/2 * i/this.boidSystem.boids.length) * 0.5 + 0.5; // fade in effect
         });
     }
 
     // ================================ SCENE 2 ================================
-    // scene req: each groups of swarms joins in the center, and while travelling to the center gradually light up. Center is spiralling
-    private updateScene2_Join(): void {
-        const progress = this.sceneTime / this.config.scene2_duration;
-        // move boids to the center
-        this.boidSystem.boids.forEach((boid, i) => {
-
-            const centerOfMass = boid.storyTarget!.clone(); // 从上一场景的位置开始
-            const targetPos = new Vector3(
-                0,
-                250,
-                0
-            );
-
-            // 从花朵形态平滑过渡到分组形态
-            boid.storyTarget = centerOfMass.lerp(targetPos, progress);
-
-            // // 背景组的无人机在此场景中逐渐亮起
-            // if (i >= this.config.initialBoidCount) {
-            //     boid.lightIntensity = Math.min(1.0, progress * 3); // gradually light up
-            // }
-        });
+    // form 
+    private updateScene2_FormOutline(): void {
     }
+    
 
     // ================================ SCENE 3 ================================
-    private updateScene3_Expand(): void {
-        const progress = this.sceneTime / this.config.scene3_duration;
-        const radius = this.config.scene3_expansionRadius * progress;
-
-        this.boidSystem.boids.forEach((boid, i) => {
-            const phi = Math.acos(-1 + (2 * i) / this.config.totalBoidCount);
-            const theta = Math.sqrt(this.config.totalBoidCount * Math.PI) * phi;
-
-            boid.storyTarget!.set(
-                radius * Math.cos(theta) * Math.sin(phi),
-                10 + radius * Math.sin(theta) * Math.sin(phi), // Y 也有一些偏移，形成立体花朵
-                radius * Math.cos(phi)
-            );
-        });
+    private updateScene3_FocusNexpand(): void {
     }
-
 
     // ================================ SCENE 4 ================================
-    // scene req: the swarm then breaks, and each boid would pause having swarming behaviours and form shapes according to the cooridinates assigned to them
-    private updateScene4_Shape(): void {
-        // Form a star-like shape using a polar/radial curve.
-        // We'll map each boid to a point on a parametric star curve so the whole
-        // swarm outlines a star. Use a smooth interpolation from current
-        // storyTarget to the final shape using the scene progress.
-        const total = Math.max(1, this.config.totalBoidCount);
-        const progress = Math.min(1, this.sceneTime / Math.max(0.0001, this.config.scene4_duration));
-        const R = this.config.scene4_shapeRadius || 50;
-
-        // number of star lobes (5 is the common star). You can tune this via config in future.
-        const lobes = 5;
-
-        for (let i = 0; i < this.boidSystem.boids.length; i++) {
-            const boid = this.boidSystem.boids[i];
-            if (!boid) continue;
-
-            // Angle around circle
-            const angle = (i / total) * Math.PI * 2;
-
-            // A simple star-like radial modulation using cosine creates sharp points.
-            // r varies between ~0 and R depending on the lobes.
-            const radialFactor = 0.5 + 0.5 * Math.cos(lobes * angle);
-            const r = R * (0.3 + 0.7 * radialFactor); // keep minimum radius so center isn't empty
-
-            const target = new Vector3(
-                r * Math.sin(angle), // image at center
-                r * Math.cos(angle) + 300, // elevate the star shape
-                0
-            );
-
-            // Smoothly move storyTarget toward the star target as scene progresses.
-            if (!boid.storyTarget) boid.storyTarget = new Vector3();
-            // Use lerp with progress to provide a smooth arrival; add a tiny per-boid offset
-            // so they don't perfectly overlap when r is identical.
-            boid.storyTarget = boid.storyTarget.lerp(target, Math.min(1, progress));
-
-            // keep color if group present, else default to white
-            if (boid.groupData && boid.groupData.color) {
-                boid.color.set(boid.groupData.color);
-            }
-        }
+    private updateScene4_Factory(): void {
     }
 
-    // ================================ SCENE 5 ================================
-    private assignGroupsForScene5(): void {
-        let boidIndex = 0;
-        this.config.groups.forEach(group => {
-            const groupSize = Math.floor(this.config.totalBoidCount * group.ratio);
-            for (let i = 0; i < groupSize && boidIndex < this.config.totalBoidCount; i++) {
-                const boid = this.boidSystem.boids[boidIndex];
-                if (boid) {
-                    boid.groupData = group; // 将分组信息附加到boid上
-                }
-                boidIndex++;
-            }
-        });
-
-        // 将剩余的boids分配给最大的组
-        const largestGroup = this.config.groups.reduce((a, b) => a.ratio > b.ratio ? a : b);
-        for (; boidIndex < this.config.totalBoidCount; boidIndex++) {
-            this.boidSystem.boids[boidIndex].groupData = largestGroup;
-        }
-    }
-
-    private updateScene5_Split(): void {
-        const numGroups = this.config.groups.length;
-        this.boidSystem.boids.forEach(boid => {
-            if (boid.groupData) {
-                const groupIndex = this.config.groups.indexOf(boid.groupData);
-                const angle = (groupIndex / numGroups) * Math.PI * 2;
-
-                const centerOfMass = boid.storyTarget!.clone(); // 从上一场景的位置开始
-                const targetPos = new Vector3(
-                    Math.cos(angle) * this.config.scene5_splitApartDistance,
-                    200,
-                    Math.sin(angle) * this.config.scene5_splitApartDistance
-                );
-
-                // 从花朵形态平滑过渡到分组形态
-                const progress = this.sceneTime / this.config.scene5_duration;
-                boid.storyTarget = centerOfMass.lerp(targetPos, progress);
-                boid.color.set(boid.groupData.color);
-            }
-        });
-    }
+    
 
 }

@@ -24,7 +24,7 @@ class App {
         const config = new BoidConfig();
         config.bounds.min.set(-500, 0, -500);
         config.bounds.max.set(500, 500, 500);
-        config.maxSpeed = 2.0;
+        config.maxSpeed = 1.0;
 
         // set the drone size to be larger for better visibility
         config.droneSize = 2.0;
@@ -43,7 +43,7 @@ class App {
         // Initialize Story Controller
         const storyConfig: StoryConfig = {
             totalBoidCount: 1000, // 17189 / 20
-            initialBoidCount: 50, // 700 / 20
+            initialBoidCount: 100, // 700 / 20
             groups: [ // from 30 groups
                 { ratio: 0.337, color: new Color(0xff0000) }, // guangdong
                 { ratio: 0.118, color: new Color(0x00ff00) }, // hunan
@@ -71,23 +71,10 @@ class App {
                 { ratio: 0.002, color: new Color(0xff00ff) },  // shanxi
                 { ratio: 0.006, color: new Color(0xff00ff) },  // others
             ],
-            // scene1_spiralHeight: 50,
-            // scene1_duration: 10,
-            // scene2_expansionRadius: 60,
-            // scene2_duration: 8,
-            // scene3_splitApartDistance: 80,
-            // scene3_duration: 12
-            scene1_spiralHeight: 30,
-            scene1_splitApartDistance: 500,
-            scene1_duration: 10,
-            scene2_joinDistance: 200,
-            scene2_duration: 14,
-            scene3_expansionRadius: 100,
-            scene3_duration: 20,
-            scene4_shapeRadius: 100,
+            scene1_duration: 30,
+            scene2_duration: 10,
+            scene3_duration: 10,
             scene4_duration: 10,
-            scene5_splitApartDistance: 500,
-            scene5_duration: 10,
         };
         this.storyController = new StoryController(this.boidSystem, storyConfig);
 
