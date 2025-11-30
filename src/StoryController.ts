@@ -15,7 +15,7 @@ export interface StoryConfig {
     scene4_duration: number;
 }
 
-type StoryScene = 'inactive' | 'scene0_idle' | 'scene0_split' | 'scene1_conv' | 'scene2_shape' | 'scene3_coolShape' | 'scene4_circle' ;
+type StoryScene = 'inactive' | 'scene1_linesPulse' | 'scene2_5g' | 'scene3_chips' | 'scene4_whirlpoolSwarm';
 
 /**
  * 这是一个用于控制无人机群表演特定故事的控制器。
@@ -49,22 +49,22 @@ export class StoryController {
         this.boidSystem.initializeBoids(this.config.totalBoidCount);
         this.boidSystem.boids.forEach((b, index) => {
             // 所有无人机从地面中心开始
-            b.position.set(0, 0, 0);
+            b.position.set(0, 250, 0);
             b.velocity.set(0, 0, 0);
 
             if (index < this.config.initialBoidCount) {
                 this.initialBoids.push(b);
                 b.isVisible = true;
-                b.lightIntensity = 1.0; // 初始组直接点亮
+                b.lightIntensity = 0.0; // 初始组直接点亮
             } else {
                 this.backgroundBoids.push(b);
                 b.isVisible = true; // 先设置为可见，但灯光为0，在黑暗中不可见
-                b.lightIntensity = 1.0;
+                b.lightIntensity = 0.0;
             }
             b.storyTarget = new Vector3(); // 为每个boid初始化storyTarget
         });
 
-        this.currentScene = 'scene0_idle';
+        this.currentScene = 'scene1_linesPulse';
         this.sceneTime = 0;
     }
 
@@ -84,43 +84,29 @@ export class StoryController {
         this.sceneTime += deltaTime;
 
         switch (this.currentScene) {
-            case 'scene0_idle':
-                this.updateScene0_idle();
-                if (this.sceneTime >= 5) {
-                    this.currentScene = 'scene0_split';
-                    this.assignGroupsForScene0();
-                    this.sceneTime = 0;
-                }
-                break;
-            case 'scene0_split':
-                this.updateScene0_split();
-                if (this.sceneTime >= 20) {
-                    this.currentScene = 'scene1_conv';
-                    this.sceneTime = 0;
-                }
-                break;
-            case 'scene1_conv':
-                this.updateScene1_conv();
+            case 'scene1_linesPulse':
+                this.updateScene1_LinesPulse();
                 if (this.sceneTime >= this.config.scene1_duration) {
-                    this.currentScene = 'scene2_shape';
+                    this.currentScene = 'scene2_5g';
                     this.sceneTime = 0;
                 }
-            case 'scene2_shape':
-                this.updateScene2_shape();
+                break;
+            case 'scene2_5g':
+                this.updateScene2_5g();
                 if (this.sceneTime >= this.config.scene2_duration) {
-                    this.currentScene = 'scene3_coolShape';
+                    this.currentScene = 'scene3_chips';
                     this.sceneTime = 0;
                 }
                 break;
-            case 'scene3_coolShape':
-                this.updateScene3_coolShape();
+            case 'scene3_chips':
+                this.updateScene3_Chips();
                 if (this.sceneTime >= this.config.scene3_duration) {
-                    this.currentScene = 'scene4_circle';
+                    this.currentScene = 'scene4_whirlpoolSwarm';
                     this.sceneTime = 0;
                 }
                 break;
-            case 'scene4_circle':
-                this.updateScene4_circle();
+            case 'scene4_whirlpoolSwarm':
+                this.updateScene4_WhirlpoolSwarm();
                 if (this.sceneTime >= this.config.scene4_duration) {
                     this.stop(); // 故事结束
                 }
@@ -129,156 +115,54 @@ export class StoryController {
     }
     
     // here start the scene update methods
-    // ============================================================================
-    private updateScene0_idle(): void {
-        // set a small value for each boid as the target to keep them hovering in place
-        this.boidSystem.boids.forEach(b => {
-            b.storyTarget!.set(
-                b.position.x + (Math.random() - 0.5) * 10,
-                b.position.y + (Math.random() - 0.5) * 10,
-                b.position.z + (Math.random() - 0.5) * 10
-            );
+    // ================================ SCENE 1 ================================
+    // basically in a sense, boids would need to be assigned to designated groups first, then pulse one by one
+    private updateScene1_LinesPulse(): void {
+        // split all boids into 8 equal sized groups
+        // for now make 8 groups equally sized
+        const totalBoids = this.boidSystem.boids.length;
+        // assign groups for all boids
+        // for now make 8 groups equally sized
+        const groups: Boid[][] = Array.from({ length: 8 }, () => []);
+        this.boidSystem.boids.forEach((b, index) => {
+            const groupIndex = Math.floor((index / totalBoids) * 8);
+            groups[groupIndex].push(b);
         });
-    }
 
-    // split into groups according to the config, with initial boids in each group according to ratio
-    private assignGroupsForScene0(): void {
-        let boidIndex = 0;
-        this.config.groups.forEach(group => {
-            const groupSize = Math.floor(this.config.totalBoidCount * group.ratio);
-            for (let i = 0; i < groupSize && boidIndex < this.config.totalBoidCount; i++) {
-                const boid = this.boidSystem.boids[boidIndex];
-                if (boid) {
-                    boid.groupData = group; // 将分组信息附加到boid上
+        // draw the lines like rays coming from the center
+        const center = new Vector3(0, 250, 0);
+        const radius = 200;
+        const angleStep = (2 * Math.PI) / 8;
+        groups.forEach((group, groupIndex) => {
+            const angle = groupIndex * angleStep;
+            const lineDirection = new Vector3(
+                Math.cos(angle), 
+                Math.sin(angle), 
+                0);
+            group.forEach((boid, boidIndex) => {
+                const t = boidIndex / group.length;
+                const targetPosition = center.clone().add(lineDirection.clone().multiplyScalar(radius * t));
+                boid.storyTarget!.copy(targetPosition);
+
+                // light up the boids one by one, group by group
+                const pulseDuration = this.config.scene1_duration / groups.length;
+                const timeInPulse = this.sceneTime - groupIndex * pulseDuration;
+                if (timeInPulse >= 0 && timeInPulse < pulseDuration) {
+                    boid.lightIntensity = 1.0;  
                 }
-                boidIndex++;
-            }
-        });
-
-        // 将剩余的boids分配给最大的组
-        const largestGroup = this.config.groups.reduce((a, b) => a.ratio > b.ratio ? a : b);
-        for (; boidIndex < this.config.totalBoidCount; boidIndex++) {
-            this.boidSystem.boids[boidIndex].groupData = largestGroup;
-        }
-    }
-
-    private updateScene0_split(): void {
-        const numGroups = this.config.groups.length;
-        this.boidSystem.boids.forEach(boid => {
-            this.initialBoids.forEach(b => {
-                b.isVisible = true;
-                b.lightIntensity = 1.0;
             });
-            if (boid.groupData) {
-                const groupIndex = this.config.groups.indexOf(boid.groupData);
-                const angle = (groupIndex / numGroups) * Math.PI * 2;
-
-                const centerOfMass = boid.storyTarget!.clone(); // 从上一场景的位置开始
-                const targetPos = new Vector3(
-                    Math.cos(angle) * 300,
-                    200,
-                    Math.sin(angle) * 300
-                );
-
-                // 从花朵形态平滑过渡到分组形态
-                const progress = this.sceneTime / 10;
-                boid.storyTarget = centerOfMass.lerp(targetPos, progress);
-                boid.color.set(boid.groupData.color);
-            }
         });
     }
 
-    // ============================================================================
-    private updateScene1_conv(): void {
-        // 场景1：无人机缓慢聚拢到中心位置
-
-        const center = new Vector3(0, 250, 0);
-        this.boidSystem.boids.forEach(b => {
-            b.isVisible = true;
-            const progress = this.sceneTime / this.config.scene1_duration;
-            const centerOfMass = b.storyTarget!.clone(); // 从上一场景的位置开始
-            b.storyTarget = centerOfMass.lerp(center, progress);
-            b.lightIntensity = Math.min(b.lightIntensity + 0.01, 1.0); // 渐亮
-        });
+    // ================================ SCENE 2 ================================
+    private updateScene2_5g(): void {
     }
 
-    // ============================================================================
-    private updateScene2_shape(): void {
-        // 场景2：无人机形成一个特定形状（flower）
-        const total = Math.max(1, this.config.totalBoidCount);
-        const progress = Math.min(1, this.sceneTime / Math.max(0.0001, this.config.scene4_duration));
-        const R = 100;
-
-        // number of star lobes (5 is the common star). You can tune this via config in future.
-        const lobes = 5;
-
-        for (let i = 0; i < this.boidSystem.boids.length; i++) {
-            const boid = this.boidSystem.boids[i];
-            if (!boid) continue;
-
-            // Angle around circle
-            const angle = (i / total) * Math.PI * 2;
-
-            // A simple star-like radial modulation using cosine creates sharp points.
-            // r varies between ~0 and R depending on the lobes.
-            const radialFactor = 0.5 + 0.5 * Math.cos(lobes * angle);
-            const r = R * (0.3 + 0.7 * radialFactor); // keep minimum radius so center isn't empty
-
-            const target = new Vector3(
-                r * Math.sin(angle), // image at center
-                r * Math.cos(angle) + 300, // elevate the star shape
-                0
-            );
-
-            // Smoothly move storyTarget toward the star target as scene progresses.
-            if (!boid.storyTarget) boid.storyTarget = new Vector3();
-            // Use lerp with progress to provide a smooth arrival; add a tiny per-boid offset
-            // so they don't perfectly overlap when r is identical.
-            boid.storyTarget = boid.storyTarget.lerp(target, Math.min(1, progress));
-
-            // keep color if group present, else default to white
-            if (boid.groupData && boid.groupData.color) {
-                boid.color.set(boid.groupData.color);
-            }
-        }
+    // ================================ SCENE 3 ================================
+    private updateScene3_Chips(): void {
     }
 
-    // ============================================================================
-    private updateScene3_coolShape(): void {
-        const progress = this.sceneTime / this.config.scene2_duration;
-        this.boidSystem.boids.forEach((boid, i) => {
-            // outline of shenzheng coordinates (simplified)
-            const angle = (i / this.initialBoids.length) * Math.PI * 2;
-            const radius = 200;
-            const targetX = radius * Math.cos(angle);
-            const targetY = 150 + Math.sin(angle * 3) * 50; // some vertical variation
-            const targetZ = radius * Math.sin(angle);
-            boid.storyTarget = new Vector3();
-            boid.storyTarget!.set(targetX, targetY, targetZ);
-            boid.isVisible = true;
-
-            // the light intensity is pulsing
-            boid.lightIntensity = Math.sin(progress * Math.PI * this.config.scene1_duration/5 + 3* Math.PI/2 * i/this.boidSystem.boids.length) * 0.5 + 0.5; ;
-        });
-    }
-
-    // ============================================================================
-    private updateScene4_circle(): void {
-        const center = new Vector3(0, 250, 0);
-        const radius = 150;
-        const angleStep = (2 * Math.PI) / this.boidSystem.boids.length;
-
-        this.boidSystem.boids.forEach((boid, index) => {
-            const angle = index * angleStep + (this.sceneTime * 0.5); // 添加时间因子实现旋转效果
-            boid.storyTarget!.set(
-                center.x + radius * Math.cos(angle),
-                center.y + radius * Math.sin(angle),
-                center.z
-            );
-
-            const progress = this.sceneTime / this.config.scene4_duration;
-
-            boid.lightIntensity = Math.sin(progress * Math.PI * 4 + (index / this.boidSystem.boids.length) * Math.PI * 2) * 0.5 + 0.5;
-        });
+    // ================================ SCENE 4 ================================
+    private updateScene4_WhirlpoolSwarm(): void {   
     }
 }

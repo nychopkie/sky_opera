@@ -23,7 +23,7 @@ class App {
         // Initialize configuration
         const config = new BoidConfig();
         config.bounds.min.set(-500, 0, -500);
-        config.bounds.max.set(500, 500, 500);
+        config.bounds.max.set(500, 800, 500);
         config.maxSpeed = 1.0;
 
         // set the drone size to be larger for better visibility
@@ -71,9 +71,9 @@ class App {
                 { ratio: 0.002, color: new Color(0xff00ff) },  // shanxi
                 { ratio: 0.006, color: new Color(0xff00ff) },  // others
             ],
-            scene1_duration: 30,
-            scene2_duration: 45,
-            scene3_duration: 45,
+            scene1_duration: 40,
+            scene2_duration: 20,
+            scene3_duration: 30,
             scene4_duration: 30,
         };
         this.storyController = new StoryController(this.boidSystem, storyConfig);
