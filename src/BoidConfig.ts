@@ -67,6 +67,10 @@ export class BoidConfig {
     droneSize: number = 1.0;             // Drone size
     showVelocityVector: boolean = false; // Show velocity vectors
     showNeighborLines: boolean = false;  // Show neighbor lines
+    // Global emissive color used by the boid material (hex number)
+    emissiveColor: number = 0xffffff;
+    // Global emissive intensity multiplier
+    emissiveIntensity: number = 1.0;
 
     // ========== Debug Mode ==========
     debugMode: boolean = false;

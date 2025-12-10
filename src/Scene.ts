@@ -303,6 +303,9 @@ export class Scene {
     /**
      * Create Boid instanced mesh
      */
+    // Keep a reference to the boid material so UI can edit it
+    private boidMaterial!: THREE.MeshStandardMaterial;
+
     private createBoidMesh(count: number): THREE.InstancedMesh {
         // For the story, we represent drones as simple points of light.
         // A sphere geometry is a good choice for this.
@@ -312,13 +315,57 @@ export class Scene {
         const material = new THREE.MeshStandardMaterial({
             color: 0xffffff,
             emissive: 0xffffff,
-            emissiveIntensity: 1.0, // We will control this per instance
+            emissiveIntensity: 1.0,
+            vertexColors: true, // allow per-instance colors via InstancedMesh.setColorAt
         });
+
+        // expose material for runtime editing
+        this.boidMaterial = material;
 
         const instancedMesh = new THREE.InstancedMesh(geometry, material, count);
         instancedMesh.castShadow = false; // Lights don't cast shadows in this simple setup
 
         return instancedMesh;
+    }
+
+    /**
+     * Set the base (non-emissive) color of the boid material.
+     * Accepts any value accepted by THREE.Color (hex number, string, Color).
+     */
+    public setBoidBaseColor(color: THREE.Color | string | number): void {
+        if (!this.boidMaterial) return;
+        this.boidMaterial.color.set(color as any);
+        this.boidMaterial.needsUpdate = true;
+    }
+
+    /**
+     * Set the emissive color of the boid material.
+     */
+    public setBoidEmissiveColor(color: THREE.Color | string | number): void {
+        if (!this.boidMaterial) return;
+        this.boidMaterial.emissive.set(color as any);
+        this.boidMaterial.needsUpdate = true;
+    }
+
+    /**
+     * Set emissive intensity (multiplier for the emissive color).
+     */
+    public setBoidEmissiveIntensity(value: number): void {
+        if (!this.boidMaterial) return;
+        this.boidMaterial.emissiveIntensity = value;
+        this.boidMaterial.needsUpdate = true;
+    }
+
+    /**
+     * Return current boid material state useful for initializing UI controls.
+     */
+    public getBoidMaterialState() {
+        if (!this.boidMaterial) return { baseColor: '#ffffff', emissiveColor: '#ffffff', emissiveIntensity: 1.0 };
+        return {
+            baseColor: `#${this.boidMaterial.color.getHexString()}`,
+            emissiveColor: `#${this.boidMaterial.emissive.getHexString()}`,
+            emissiveIntensity: this.boidMaterial.emissiveIntensity
+        };
     }
 
     /**
@@ -375,6 +422,23 @@ export class Scene {
      */
     render(): void {
         this.updateCamera();
+
+        // Sync global emissive color/intensity from boid config to material (only when changed)
+        try {
+            const cfg = this.boidSystem.config as any;
+            if (this.boidMaterial && cfg && typeof cfg.emissiveColor !== 'undefined') {
+                const currentHex = this.boidMaterial.emissive.getHex();
+                if (currentHex !== cfg.emissiveColor) {
+                    this.boidMaterial.emissive.setHex(cfg.emissiveColor);
+                    this.boidMaterial.needsUpdate = true;
+                }
+                if (this.boidMaterial.emissiveIntensity !== cfg.emissiveIntensity) {
+                    this.boidMaterial.emissiveIntensity = cfg.emissiveIntensity;
+                    this.boidMaterial.needsUpdate = true;
+                }
+            }
+        } catch (_) {}
+
         this.updateBoids();
         this.renderer.render(this.scene, this.camera);
     }

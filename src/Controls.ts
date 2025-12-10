@@ -152,6 +152,33 @@ export class Controls {
                 if (value) this.scene.toggleAutoRotate();
             });
 
+        // Boid material controls (base color + emissive)
+        const matState = this.scene.getBoidMaterialState();
+        const boidMatControls = {
+            baseColor: matState.baseColor,
+            emissiveColor: matState.emissiveColor,
+            emissiveIntensity: matState.emissiveIntensity
+        };
+
+        renderFolder.addColor(boidMatControls, 'baseColor').name('Boid Base Color').onChange((v: any) => {
+            this.scene.setBoidBaseColor(v);
+        });
+
+        renderFolder.addColor(boidMatControls, 'emissiveColor').name('Boid Emissive Color').onChange((v: any) => {
+            this.scene.setBoidEmissiveColor(v);
+            // also store in config so StoryController or other systems can read it
+            if (typeof v === 'string' && v.startsWith('#')) {
+                this.boidSystem.config.emissiveColor = parseInt(v.slice(1), 16);
+            } else if (typeof v === 'number') {
+                this.boidSystem.config.emissiveColor = v;
+            }
+        });
+
+        renderFolder.add(boidMatControls, 'emissiveIntensity', 0, 5, 0.01).name('Emissive Intensity').onChange((v: number) => {
+            this.scene.setBoidEmissiveIntensity(v);
+            this.boidSystem.config.emissiveIntensity = v;
+        });
+
         // ========== Preset Modes ==========
         const presetsFolder = this.gui.addFolder('Preset Modes');
 

@@ -41,38 +41,35 @@ class App {
         this.controls = new Controls(this.boidSystem, this.scene);
 
         // Initialize Story Controller
+        const groupRatios = [
+            0.337, 0.118, 0.107, 0.079, 0.066,
+            0.065, 0.056, 0.032, 0.022, 0.017,
+            0.016, 0.015, 0.015, 0.007, 0.007,
+            0.006, 0.005, 0.005, 0.004, 0.004,
+            0.004, 0.003, 0.002, 0.002, 0.006
+        ];
+
+        // Use an explicit list of hex colors (one per group) so colors are deterministic
+        const groupHexColors: number[] = [
+            0xFF3B30, 0xFF9500, 0xFFCC00, 0xFFD455, 0xAAFF00,
+            0x00FF5E, 0x00D4FF, 0x007AFF, 0x4B0082, 0x7F00FF,
+            0xFF00C8, 0xFF66B2, 0xFF99A4, 0xFFB347, 0xFF7F50,
+            0xCD5C5C, 0x8B4513, 0x2E8B57, 0x20B2AA, 0x4682B4,
+            0x6A5ACD, 0x9400D3, 0xDC143C, 0xFF1493, 0xFF69B4
+        ];
+
+        const groups = groupRatios.map((ratio, i) => {
+            const hex = groupHexColors[i % groupHexColors.length];
+            const color = new Color(hex);
+            return { ratio, color };
+        });
+
         const storyConfig: StoryConfig = {
             totalBoidCount: 1000, // 17189 / 20
             initialBoidCount: 100, // 700 / 20
-            // groups: [ // from 30 groups
-            //     { ratio: 0.337, color: new Color(0xff0000) }, // guangdong
-            //     { ratio: 0.118, color: new Color(0x00ff00) }, // hunan
-            //     { ratio: 0.107, color: new Color(0x0000ff) }, // guangxi
-            //     { ratio: 0.079, color: new Color(0xffff00) }, // hubei
-            //     { ratio: 0.066, color: new Color(0xff00ff) },  // jiangxi
-            //     { ratio: 0.065, color: new Color(0xff00ff) },  // henan
-            //     { ratio: 0.056, color: new Color(0xff00ff) },  // sichuan
-            //     { ratio: 0.032, color: new Color(0xff00ff) },  // guizhou
-            //     { ratio: 0.022, color: new Color(0xff00ff) },  // chongqing
-            //     { ratio: 0.017, color: new Color(0xff00ff) },  // anhui
-            //     { ratio: 0.016, color: new Color(0xff00ff) },  // fujian
-            //     { ratio: 0.015, color: new Color(0xff00ff) },  // yunan
-            //     { ratio: 0.015, color: new Color(0xff00ff) },  // shaanxi
-            //     { ratio: 0.007, color: new Color(0xff00ff) },  // shangdong
-            //     { ratio: 0.007, color: new Color(0xff00ff) },  // heilongjiang
-            //     { ratio: 0.006, color: new Color(0xff00ff) },  // gangsu
-            //     { ratio: 0.005, color: new Color(0xff00ff) },  // jiangsu
-            //     { ratio: 0.005, color: new Color(0xff00ff) },  // hainan
-            //     { ratio: 0.004, color: new Color(0xff00ff) },  // zhejiang
-            //     { ratio: 0.004, color: new Color(0xff00ff) },  // liaoning
-            //     { ratio: 0.004, color: new Color(0xff00ff) },  // jilin
-            //     { ratio: 0.003, color: new Color(0xff00ff) },  // hebei
-            //     { ratio: 0.002, color: new Color(0xff00ff) },  // neimenggu
-            //     { ratio: 0.002, color: new Color(0xff00ff) },  // shanxi
-            //     { ratio: 0.006, color: new Color(0xff00ff) },  // others
-            // ],
+            groups: groups,
             scene1_duration: 30,
-            scene2_duration: 20,
+            scene2_duration: 10,
             scene3_duration: 20,
             scene4_duration: 30,
         };
